@@ -1,11 +1,11 @@
 {
-  "name":         "qutic-netbox",
-  "version":      "20230910.0",
-  "description":  "qutic netbox image",
-  "organization": "qutic development",
-  "brand":        "netbox Instance",
-  "homepage":     "https://github.com/jfqd/mi-qutic-netbox",
-  "base":         "73d24582-a745-11ea-a0d3-ab4003f99a6e",
+  "name":         "core-netbox",
+  "version":      "23.4.0",
+  "description":  "core.io netbox image",
+  "organization": "SkyLime",
+  "brand":        "Instance",
+  "homepage":     "https://github.com/skylime/mi-core-netbox",
+  "base":         "9e45669f-c804-4aff-be1a-c5c2621244c7",
   "customer_metadata": {
     "admin_authorized_keys":           {"type": "text", "description": "SSH public authorized key(s) for the admin user"},
     "netbox_authorized_keys":          {"type": "text", "description": "SSH public authorized key(s) for the ruby user"},

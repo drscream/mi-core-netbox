@@ -1,51 +1,55 @@
 #!/usr/bin/bash
 
+NETBOX_VERSION="v4.0.5"
+
 PATH=/opt/local/gnu/bin:/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin
 
 # Exit if any command fails
 set -o errexit
 
-# setup postgresql for passwordless usage for psql usage
-sed -i 's/local   all             all                                     password/local   all             all                                     peer/' \
-  /var/pgsql/data/pg_hba.conf
+echo "* Use default python 3.11"
+pkg_alternatives manual python311
+pkg_alternatives manual py311-pip
 
-# access postgresql only on localhost
-sed -i "s/#listen_addresses = 'localhost'/listen_addresses = 'localhost'/" \
-  /var/pgsql/data/postgresql.conf
+echo "* Remove used pgsql stuff from base"
+rm -rf /var/pgsql/*
 
-# start services
-svcadm enable svc:/pkgsrc/postgresql:default
-svcadm enable redis
+echo "* Configuring image specific packages."
+mkdir -p /{opt,var}/netbox
 
-groupadd -g 1100 netbox
-useradd -m -s /usr/bin/bash -d /home/netbox -u 1100 -g netbox netbox
-passwd -N netbox
-passwd -d netbox
+# TODO: create a pkgsrc pkg with all dependencies
+echo "* Install build dependencies"
+pkgin -y install build-essential rust
 
-cd /home/netbox
-git clone -b master https://github.com/netbox-community/netbox.git
+echo "* Download and extract netbox to /opt/netbox"
+curl -L "https://github.com/netbox-community/netbox/archive/refs/tags/${NETBOX_VERSION}.tar.gz" | gtar xz -C /opt/netbox --strip-components=1
 
-# setup venv
-python3.10 -m venv /home/netbox/venv
-source venv/bin/activate
+echo "* Add netbox user"
+groupadd netbox
+useradd -d /opt/netbox -c "netbox user" -s /usr/bin/false -g netbox netbox
 
-# install required packages
-cd netbox
-TMPDIR=/var/tmp pip3.10 install --upgrade pip
-TMPDIR=/var/tmp pip3.10 install -r requirements.txt
-TMPDIR=/var/tmp pip3.10 install napalm
+echo "* Install netbox requirements"
+python3 -m venv /opt/netbox/venv --system-site-packages
 
-# move config into place
-mv /var/zoneinit/tmp/configuration.py /home/netbox/netbox/netbox/netbox/configuration.py
-cp /home/netbox/netbox/contrib/gunicorn.py /home/netbox/netbox/gunicorn.py
+echo "* Copy configuration template"
+cp /tmp/configuration.py /opt/netbox/netbox/netbox/
+cp /opt/netbox/contrib/gunicorn.py /opt/netbox/netbox/
 
-# fix rights
-chown -R netbox:netbox /home/netbox
+echo "* Setup permissions for netbox folder"
+chown -R netbox:netbox /{opt,var}/netbox
 
-# Clean up
-echo "* Cleaning up."
-rm -rf /var/zoneinit/tmp/
-rm /root/customize
+gsed -i '/nh3.*/d' /opt/netbox/requirements.txt
+sudo -u netbox \
+    TMPDIR=/var/tmp \
+    /opt/netbox/venv/bin/pip3 install -r /opt/netbox/requirements.txt
 
-# Prepare image for provisioning
+echo "* Remove build dependencies"
+pkgin -y remove build-essential rust
+pkgin -y autoremove
+
+echo "* Cleanup home/admin because of delegate dataset usage"
+rm -rf /home/admin/.[^.]*
+
+echo "* Cleaning up"
+rm -rf /root/*
 sm-prepare-image -y
